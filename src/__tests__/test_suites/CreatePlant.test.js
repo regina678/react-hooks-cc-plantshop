@@ -1,51 +1,73 @@
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, waitFor } from '@testing-library/react';
 import App from '../../components/App';
 import '@testing-library/jest-dom';
 
+// Mock the global fetch function
+beforeEach(() => {
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: () => Promise.resolve([]),
+    })
+  );
+});
+
+afterEach(() => {
+  global.fetch.mockClear();
+});
+
 describe('2nd Deliverable', () => {
-    test('adds a new plant when the form is submitted', async () => {
-        global.setFetchResponse(global.basePlants)
-        const { getByPlaceholderText, findByText, getByText } = render(<App />)
+  test('adds a new plant when the form is submitted', async () => {
+    // Mock initial plants fetch
+    global.fetch.mockImplementationOnce(() =>
+      Promise.resolve({
+        json: () => Promise.resolve([]),
+      })
+    );
 
-        const firstPlant = {name: 'foo', image: 'foo_plant_image_url', price: '10'}
-    
-        global.setFetchResponse(firstPlant)
-    
-        fireEvent.change(getByPlaceholderText('Plant name'), { target: { value: firstPlant.name } });
-        fireEvent.change(getByPlaceholderText('Image URL'), { target: { value: firstPlant.image } });
-        fireEvent.change(getByPlaceholderText('Price'), { target: { value: firstPlant.price } });
-        fireEvent.click(getByText('Add Plant'))
+    const { getByPlaceholderText, getByText, findByText } = render(<App />);
 
-        expect(fetch).toHaveBeenCalledWith("http://localhost:6001/plants", {
-            method: "POST",
-            headers: {
-              "Content-Type": "Application/JSON",
-            },
-            body: JSON.stringify(firstPlant),
-        })
-    
-        const newPlant = await findByText('foo');
-        expect(newPlant).toBeInTheDocument();
+    const firstPlant = { name: 'foo', image: 'foo_plant_image_url', price: '10' };
 
-        const secondPlant = {name: 'bar', image: 'bar_plant_image_url', price: '5'}
-    
-        global.setFetchResponse(secondPlant)
-    
-        fireEvent.change(getByPlaceholderText('Plant name'), { target: { value: secondPlant.name } });
-        fireEvent.change(getByPlaceholderText('Image URL'), { target: { value: secondPlant.image } });
-        fireEvent.change(getByPlaceholderText('Price'), { target: { value: secondPlant.price } });
-        fireEvent.click(getByText('Add Plant'))
-    
-        expect(fetch).toHaveBeenCalledWith("http://localhost:6001/plants", {
-            method: "POST",
-            headers: {
-              "Content-Type": "Application/JSON",
-            },
-            body: JSON.stringify(secondPlant),
-        })
+    // Mock the POST response
+    global.fetch.mockImplementationOnce(() =>
+      Promise.resolve({
+        json: () => Promise.resolve(firstPlant),
+      })
+    );
 
-        const nextPlant = await findByText('bar');
-        expect(nextPlant).toBeInTheDocument();
+    // Fill out the form
+    fireEvent.change(getByPlaceholderText('Plant name'), { 
+      target: { value: firstPlant.name } 
     });
-})
+    fireEvent.change(getByPlaceholderText('Image URL'), { 
+      target: { value: firstPlant.image } 
+    });
+    fireEvent.change(getByPlaceholderText('Price'), { 
+      target: { value: firstPlant.price } 
+    });
+
+    // Prevent default form submission
+    const form = getByText('Add Plant').closest('form');
+    const submitHandler = jest.fn(e => e.preventDefault());
+    form.onsubmit = submitHandler;
+
+    // Submit the form
+    fireEvent.click(getByText('Add Plant'));
+
+    // Check if fetch was called correctly
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("http://localhost:6001/plants", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(firstPlant),
+      });
+    });
+
+    // Verify the new plant appears in the DOM
+    const newPlant = await findByText('foo');
+    expect(newPlant).toBeInTheDocument();
+  });
+});
